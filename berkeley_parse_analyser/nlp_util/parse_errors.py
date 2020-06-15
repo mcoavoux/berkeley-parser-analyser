@@ -1,22 +1,28 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # vim: set ts=2 sw=2 noet:
+from collections import defaultdict
 
 class ParseErrorSet:
-    def __init__(self, gold=None, test=None, include_terminals=False):
+    def __init__(self, gold=None, test=None, include_terminals=False, discontinuous=False):
         self.missing = []
         self.crossing = []
         self.extra = []
         self.POS = []
         self.spans = {}
-
+        self.discontinuous = discontinuous
+        gather_errors = get_errors
+        if discontinuous:
+            gather_errors = get_disco_errors
+            
         if gold is not None and test is not None:
-            errors = get_errors(test, gold, include_terminals)
+            errors = gather_errors(test, gold, include_terminals)
             for error in errors:
                 self.add_error(error[0], error[1], error[2], error[3])
 
     def add_error(self, etype, span, label, node):
         error = (etype, span, label, node)
+        #print(span)
         if span not in self.spans:
             self.spans[span] = {}
         if label not in self.spans[span]:
@@ -41,6 +47,99 @@ class ParseErrorSet:
 
     def __len__(self):
         return len(self.missing) + len(self.extra) + len(self.crossing) + (2*len(self.POS))
+
+
+def is_discontinuous_yield(span):
+    return list(span) != list(range(span[0], span[-1]+1))
+
+def is_crossing(span1, span2):
+    # crossing = intersection is not empty
+    #      &&    no subset relation between span1 and span2
+    s1 = set(span1)
+    s2 = set(span2)
+    if len(s1 & s2) == 0:
+        return False
+    if s1.issubset(s2):
+        return False
+    if s2.issubset(s1):
+        return False
+    return True
+
+def get_disco_errors(test, gold, include_terminals=False):
+    ans = []
+    test.update_true_spans()
+    gold.update_true_spans()
+    gold_words = gold.word_yield()
+    test_words = test.word_yield()
+
+    tokens = [s for s in gold if s.is_terminal()]
+    #print([t.word for t in tokens])
+    #print
+    #print([(t.span, t.word) for t in tokens])
+    #print
+    #print(gold_words)
+    #print
+    #print(test_words)
+
+    test_spans = [(node.label, tuple(sorted(node.true_span)), node) for node in test]
+    gold_spans = [(node.label, tuple(sorted(node.true_span)), node) for node in gold]
+
+    disco_tspans = [(a, b, c) for a,b,c in test_spans if is_discontinuous_yield(b)]
+    disco_gspans = [(a, b, c) for a,b,c in gold_spans if is_discontinuous_yield(b)]
+
+    # h_tspans = defaultdict(list)
+    # h_gspans = defaultdict(list)
+    # for a, b, c in test_spans:
+        # h_tspans[b].append((a, c))
+
+    # for a, b, c in gold_spans:
+        # h_gspans[b].append((a,c))
+
+    h_disco_tspans = defaultdict(list)
+    h_disco_gspans = defaultdict(list)
+    for a, b, c in disco_tspans:
+        h_disco_tspans[b].append((a,c))
+    for a, b, c in disco_gspans:
+        h_disco_gspans[b].append((a,c))
+
+    ans = []
+    # etype, span, label, node
+    for tlabel, tspan, tnode in disco_tspans:
+        if tspan in h_disco_gspans:
+            list_const = h_disco_gspans[tspan]
+            if tlabel in [a for a, b in list_const]:
+                continue
+        ans.append(('extra', tspan, tnode.label, tnode))
+        print "extra", tnode
+        print
+
+        # Old
+        # if tspan in h_disco_gspans:
+            # if tlabel != h_disco_tspans[tspan][0]:
+                # ans.append(('incorrect label', tspan, h_disco_tspans[tspan][0], tnode))
+                # print "incorrect label", tlabel, h_disco_tspans[tspan][0], tnode
+                # print
+        # else:
+
+    for glabel, gspan, gnode in disco_gspans:
+        if gspan not in h_disco_tspans:
+            name = "missing"
+            for tlabel, tspan, tnode in disco_tspans:
+                if is_crossing(gspan, tspan):
+                    name = "crossing"
+                    break
+            ans.append((name, gspan, gnode.label, gnode))
+            print "missing", gnode
+            print
+        else:
+            list_const = h_disco_tspans[gspan]
+            if glabel not in [a for a, b in list_const]:
+                ans.append(("missing", gspan, gnode.label, gnode))
+                print "missing", gnode
+                print
+
+    return ans
+
 
 def get_errors(test, gold, include_terminals=False):
     ans = []

@@ -82,12 +82,63 @@ class PSTree:
         self.word = word
         self.label = label
         self.span = span
+        self.true_span = None
+        self.token_id = None
+        if self.word is not None:
+            i, word = self.word.split("=")
+            i = int(i)
+            self.true_span = {i}
         self.parent = parent
         self.subtrees = []
         if subtrees is not None:
             self.subtrees = subtrees
             for subtree in subtrees:
                 subtree.parent = self
+                self.true_span |= subtree.true_span
+
+    def update_true_spans(self):
+        # update discontinuous spans (according to true token ids, shifted for punctuation removal)
+        all_idxes = []
+        for t in self:
+            if t.is_terminal():
+                i, word = t.word.split("=")
+                i = int(i)
+                t.token_id = i
+                all_idxes.append(i)
+
+        all_idxes = set(all_idxes)
+        missing = [i for i in range(max(all_idxes)) if i not in all_idxes]
+
+        for t in self:
+            if t.is_terminal():
+                shift = sum([ t.token_id > i for i in missing ])
+                t.true_span = {t.token_id - shift}
+        self.update_true_spans_rec()
+
+    def update_true_spans_rec(self):
+        if not self.is_terminal():
+            self.true_span = set()
+            for subtree in self.subtrees:
+                subtree.update_true_spans_rec()
+                self.true_span |= subtree.true_span
+
+
+    def update_proj_spans(self):
+        if self.is_terminal():
+            return
+        for subtree in self.subtrees:
+            subtree.update_proj_spans()
+        self.span = (self.subtrees[0].span[0], self.subtrees[-1].span[1])
+
+    def update_linearization_spans(self):
+        # update constituents with representation order (not necessarily sentence order)
+        i = 0
+        for t in self:
+            if t.is_terminal():
+                t.span = (i, i+1)
+                i+=1
+
+        self.update_proj_spans()
 
     def __iter__(self):
         return TreeIterator(self, 'pre')
@@ -267,6 +318,10 @@ class PSTree:
                 return None
         else:
             return start
+
+
+#def tree_from_text(text, allow_empty_labels=False, allow_empty_words=False):
+    # TODO: reimplement using nltk tree
 
 def tree_from_text(text, allow_empty_labels=False, allow_empty_words=False):
     '''Construct a PSTree from the provided string, which is assumed to represent
