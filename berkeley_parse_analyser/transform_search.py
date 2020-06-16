@@ -300,7 +300,7 @@ def compare_trees(gold_tree, test_tree, out_dict, error_counts, classify):
     disco_errors = parse_errors.get_disco_errors(test_tree, gold_tree)
     error_count = len(disco_errors)
     print >> out_dict['out'], "{} Initial errors".format(error_count)
-
+    
     iters, path = greedy_search_disco(gold_tree, test_tree)
     print >> out_dict['out'], "{} on fringe, {} iterations".format(*iters)
     if path is not None:

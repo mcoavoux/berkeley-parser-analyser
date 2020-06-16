@@ -82,7 +82,7 @@ class PSTree:
         self.word = word
         self.label = label
         self.span = span
-        self.true_span = None
+        self.true_span = set()
         self.token_id = None
         if self.word is not None:
             i, word = self.word.split("=")
@@ -124,10 +124,16 @@ class PSTree:
 
 
     def update_proj_spans(self):
+        terminals = [t for t in self if t.is_terminal()]
+        for i, t in enumerate(terminals):
+            t.span = (i, i+1)
+        self.update_proj_spans_rec()
+    
+    def update_proj_spans_rec(self):
         if self.is_terminal():
             return
         for subtree in self.subtrees:
-            subtree.update_proj_spans()
+            subtree.update_proj_spans_rec()
         self.span = (self.subtrees[0].span[0], self.subtrees[-1].span[1])
 
     def update_linearization_spans(self):
@@ -145,6 +151,9 @@ class PSTree:
 
     def clone(self):
         ans = PSTree(self.word, self.label, self.span)
+        ans.true_span = self.true_span
+        ans.token_id = self.token_id
+
         for subtree in self.subtrees:
             subclone = subtree.clone()
             subclone.parent = ans
@@ -318,6 +327,13 @@ class PSTree:
                 return None
         else:
             return start
+
+    def find_disco_spanning_node(self, span):
+        assert span.issubset(self.true_span)
+        for c in self.subtrees:
+            if span.issubset(c.true_span):
+                return c.find_disco_spanning_node(span)
+        return self
 
 
 #def tree_from_text(text, allow_empty_labels=False, allow_empty_words=False):

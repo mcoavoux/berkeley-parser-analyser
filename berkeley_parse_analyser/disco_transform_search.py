@@ -3,84 +3,206 @@ from collections import defaultdict
 from StringIO import StringIO
 
 
-# def gen_different_label_successor(ctree, span, cur_label, new_label):
-    # success, response = tree_transform.change_label(ctree, new_label, span, cur_label, False)
-    # assert success, response
-
-    # ntree, nnode = response
-
-    # info = {
-        # 'type': 'relabel',
-        # 'change': (cur_label, new_label),
-        # 'subtrees': [get_label(subtree) for subtree in nnode.subtrees],
-        # 'parent': nnode.parent.label,
-        # 'span': nnode.span,
-        # 'family': [get_label(subtree) for subtree in nnode.parent.subtrees],
-        # 'auto preterminals': get_preterminals(nnode),
-        # 'auto preterminal span': nnode.span,
-        # 'over_word': len(nnode.subtrees) == 1 and nnode.subtrees[0].word is not None
-    # }
-
-    # return (True, ntree, info)
+## Note: those two are duplicated from transform search
+def get_label(tree):
+    if tree.word is None:
+        return tree.label
+    if tree.label == 'PU':
+        return tree.label + tree.word
+    else:
+        return tree.label
 
 
-# def gen_missing_successor(ctree, error):
-    # success, response = tree_transform.add_node(ctree, error[1], error[2], in_place=False)
-    # assert success, response
-
-    # ntree, nnode = response
-    # nnode_index = nnode.parent.subtrees.index(nnode)
-
-    # info = {
-        # 'type': 'add',
-        # 'label': get_label(nnode),
-        # 'span': nnode.span,
-        # 'subtrees': [get_label(subtree) for subtree in nnode.subtrees],
-        # 'parent': nnode.parent.label,
-        # 'family': [get_label(subtree) for subtree in nnode.parent.subtrees],
-        # 'auto preterminals': get_preterminals(nnode),
-        # 'auto preterminal span': nnode.span,
-        # 'left siblings': nnode.parent.subtrees[:nnode_index],
-        # 'right siblings': nnode.parent.subtrees[nnode_index + 1:],
-        # 'over_word': len(nnode.subtrees) == 1 and nnode.subtrees[0].is_terminal(),
-        # 'over words': reduce(lambda prev, node: prev and node.is_terminal(), nnode.subtrees, True),
-    # }
-
-    # return (True, ntree, info)
+def get_preterminals(tree, ans=None):
+    return_tuple = False
+    if ans is None:
+        ans = []
+        return_tuple = True
+    if tree.is_terminal():
+        ans.append(tree.label)
+    for subtree in tree.subtrees:
+        assert subtree != tree
+        get_preterminals(subtree, ans)
+    if return_tuple:
+        return tuple(ans)
 
 
-# def gen_extra_successor(ctree, error, gold):
-    # success, response = tree_transform.remove_node(ctree, error[1], error[2], in_place=False)
-    # assert success, response
 
-    # parent, dnode, spos, epos  = response
-    # ntree = parent.root()
+def disco_gen_different_label_successor(ctree, span, cur_label, new_label):
+    #success, response = tree_transform.change_label(ctree, new_label, span, cur_label, False)
+    success, response = tree_transform.change_label_by_node(ctree, new_label, in_place=True)
+    assert success, response
 
-    # info = {
-        # 'type': 'remove',
-        # 'label': get_label(dnode),
-        # 'span': dnode.span,
-        # 'subtrees': [get_label(subtree) for subtree in dnode.subtrees],
-        # 'parent': parent.label,
-        # 'family': [get_label(subtree) for subtree in parent.subtrees[:spos] + [dnode] + parent.subtrees[epos:]],
-        # 'left siblings': [get_label(subtree) for subtree in parent.subtrees[:spos]],
-        # 'right siblings': [get_label(subtree) for subtree in parent.subtrees[epos:]],
-        # 'over words': reduce(lambda prev, node: prev and node.is_terminal(), dnode.subtrees, True),
-        # 'over_word': len(dnode.subtrees) == 1 and dnode.subtrees[0].is_terminal(),
-        # 'auto preterminals': get_preterminals(parent),
-        # 'auto preterminal span': parent.span
-    # }
+    ntree, nnode = response
 
-    # if len(info['right siblings']) == 1:
-        # sibling = parent.subtrees[-1]
-        # for node in sibling:
-            # if node.word is not None:
-                # gold_eq = gold.get_nodes('lowest', node.span[0], node.span[1])
-                # if gold_eq is not None:
-                    # if get_label(node) != gold_eq.label:
-                        # info['POS confusion'] = (get_label(node), get_label(gold_eq))
+    info = {
+        'type': 'relabel',
+        'change': (cur_label, new_label),
+        'subtrees': [get_label(subtree) for subtree in nnode.subtrees],
+        'parent': nnode.parent.label,
+        'span': nnode.span,
+        'family': [get_label(subtree) for subtree in nnode.parent.subtrees],
+        'auto preterminals': get_preterminals(nnode),
+        'auto preterminal span': nnode.span,
+        'over_word': len(nnode.subtrees) == 1 and nnode.subtrees[0].word is not None
+    }
+    return (True, ntree, info)
 
-    # return (True, ntree, info)
+
+def disco_add_node(tree, span, label, position=0, in_place=True):
+    '''Introduce a new node in the tree.  Position indicates what to do when a
+    node already exists with the same span.  Zero indicates above any current
+    nodes, one indicates beneath the first, and so on.'''
+    tree = tree.root()
+    if not in_place:
+        tree = tree.clone()
+
+    # Search node such that: its span has the smallest superset of span
+    set_span = set(span)
+    node = tree.find_disco_spanning_node(set_span)
+    #print "node", node
+    
+    # search whether the subtrees have either:
+    #    empty intersection with span
+    #    or are subsets of span
+
+    outnodes = []
+    innodes = []
+    for subtree in node.subtrees:
+        intersection = subtree.true_span & set_span
+        if len(intersection) == 0:
+            outnodes.append(subtree)
+        elif len(intersection) == len(subtree.true_span):
+            innodes.append(subtree)
+        else:
+            return (False, "Cannot add node, crossing problem")
+    
+    full_span = set()
+    for inode in innodes:
+        full_span |= inode.true_span
+    assert full_span == set_span
+
+    newnode = pstree.PSTree(word=None, label=label, span=(0,0), parent=node, subtrees=innodes)
+    newchildren = outnodes + [newnode]
+    node.subtrees = sorted(newchildren, key = lambda x: min(x.true_span))
+    
+    tree.update_proj_spans()
+
+    return (True, (tree, newnode))
+    
+    """
+    # Find the node(s) that should be within the new span
+    nodes = tree.get_spanning_nodes(*span)
+    # Do not operate on the root node
+    if nodes[0].parent is None:
+        nodes = nodes[0].subtrees[:]
+    for i in xrange(position):
+        if len(nodes) > 1:
+            return (False, "Position {} is too deep".format(position))
+        nodes[0] = nodes[0].subtrees[0]
+    nodes.sort(key=lambda x: x.span)
+
+    # Check that all of the nodes are at the same level
+    parent = None
+    for node in nodes:
+        if parent is None:
+            parent = node.parent
+        if parent != node.parent:
+            return (False, "The span ({} - {}) would cross brackets".format(*span))
+
+    # Create the node
+    nnode = pstree.PSTree(None, label, span, parent)
+    position = parent.subtrees.index(nodes[0])
+    parent.subtrees.insert(position, nnode)
+
+    # Move the subtrees
+    for node in nodes:
+        node.parent.subtrees.remove(node)
+        nnode.subtrees.append(node)
+        node.parent = nnode
+
+    return (True, (tree, nnode))
+    """
+
+def disco_gen_missing_successor(ctree, error):
+    success, response = disco_add_node(ctree, error[1], error[2], in_place=True)
+    assert success, response
+
+    ntree, nnode = response
+    nnode_index = nnode.parent.subtrees.index(nnode)
+
+    info = {
+        'type': 'add',
+        'label': get_label(nnode),
+        'span': nnode.span,
+        'subtrees': [get_label(subtree) for subtree in nnode.subtrees],
+        'parent': nnode.parent.label,
+        'family': [get_label(subtree) for subtree in nnode.parent.subtrees],
+        'auto preterminals': get_preterminals(nnode),
+        'auto preterminal span': nnode.span,
+        'left siblings': nnode.parent.subtrees[:nnode_index],
+        'right siblings': nnode.parent.subtrees[nnode_index + 1:],
+        'over_word': len(nnode.subtrees) == 1 and nnode.subtrees[0].is_terminal(),
+        'over words': reduce(lambda prev, node: prev and node.is_terminal(), nnode.subtrees, True),
+    }
+
+    return (True, ntree, info)
+
+
+def disco_remove_node_by_node(node, in_place):
+    if not in_place:
+        node = pstree.clone_and_find(node)
+    root = node.root()
+    parent = node.parent
+    position = parent.subtrees.index(node)
+    init_position = position
+    parent.subtrees.pop(position)
+    for subtree in node.subtrees:
+        subtree.parent = parent
+        parent.subtrees.append(subtree)
+    parent.subtrees.sort(key = lambda x: min(x.true_span))
+    parent.update_proj_spans()
+    return (True, (parent, node, "disco pos", "disco pos"))
+
+
+
+def disco_gen_extra_successor(ctree, error, gold):
+    #ans.append(('extra', tspan, tnode.label, tnode))
+    #success, response = disco_remove_node(ctree, error[1], error[2], in_place=False)
+    success, response = disco_remove_node_by_node(error[3], in_place=True)
+    assert success, response
+
+    parent, dnode, spos, epos  = response
+    ntree = parent.root()
+
+    info = {
+        'type': 'remove',
+        'label': get_label(dnode),
+        'span': dnode.span,
+        'subtrees': [get_label(subtree) for subtree in dnode.subtrees],
+        'parent': parent.label,
+        #'family': [get_label(subtree) for subtree in parent.subtrees[:spos] + [dnode] + parent.subtrees[epos:]],
+        #'left siblings': [get_label(subtree) for subtree in parent.subtrees[:spos]],
+        #'right siblings': [get_label(subtree) for subtree in parent.subtrees[epos:]],
+        'over words': reduce(lambda prev, node: prev and node.is_terminal(), dnode.subtrees, True),
+        'over_word': len(dnode.subtrees) == 1 and dnode.subtrees[0].is_terminal(),
+        'auto preterminals': get_preterminals(parent),
+        'auto preterminal span': parent.span
+    }
+
+    """
+    # that might be useful
+    if len(info['right siblings']) == 1:
+        sibling = parent.subtrees[-1]
+        for node in sibling:
+            if node.word is not None:
+                gold_eq = gold.get_nodes('lowest', node.span[0], node.span[1])
+                if gold_eq is not None:
+                    if get_label(node) != gold_eq.label:
+                        info['POS confusion'] = (get_label(node), get_label(gold_eq))
+    """
+    
+    return (True, ntree, info)
 
 
 # def gen_move_successor(source_span, left, right, new_parent, cerrors, gold):
@@ -161,16 +283,21 @@ def disco_successors(ctree, cerrors, gold):
         for eerror in cerrors.extra:
             print(merror, eerror)
             if merror[1] == eerror[1]:
-                yield gen_different_label_successor(ctree, eerror[1], eerror[2], merror[2])
+                # def gen_different_label_successor(ctree, span, cur_label, new_label):
+                yield disco_gen_different_label_successor(ctree, merror[1], error[1], merror[2])
+
 
     # Add a node
     for error in cerrors.missing:
-        yield gen_missing_successor(ctree, error)
+        yield disco_gen_missing_successor(ctree, error)
+
 
     # Remove a node
     for error in cerrors.extra:
-        yield gen_extra_successor(ctree, error, gold)
+        yield disco_gen_extra_successor(ctree, error, gold)
 
+
+    """
     # Move nodes
     for source_span in ctree:
         # Consider all continuous sets of children
@@ -232,6 +359,7 @@ def disco_successors(ctree, cerrors, gold):
 
                 for new_parent in new_parents:
                     yield gen_move_successor(source_span, left, right, new_parent, cerrors, gold)
+    """
 
 def greedy_search_disco(gold, test):
     # Initialise with the test tree
@@ -243,6 +371,7 @@ def greedy_search_disco(gold, test):
         if iters > 100:
             return (0, iters), None
         # Check for victory
+
         ctree = cur[0]
         cerrors = parse_errors.ParseErrorSet(gold, ctree, discontinuous=True)
         if len(cerrors) == 0:
@@ -264,6 +393,6 @@ def greedy_search_disco(gold, test):
         iters += 1
     
     for step in path:
-        classify(step[1], gold, test)
-    
+        # classify(step[1], gold, test)
+        step[1]["classified_type"] = "TODO"
     return (0, iters), path

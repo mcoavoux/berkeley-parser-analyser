@@ -66,6 +66,7 @@ def is_crossing(span1, span2):
     return True
 
 def get_disco_errors(test, gold, include_terminals=False):
+    print "call get_disco_errors"
     ans = []
     test.update_true_spans()
     gold.update_true_spans()
@@ -87,6 +88,9 @@ def get_disco_errors(test, gold, include_terminals=False):
     disco_tspans = [(a, b, c) for a,b,c in test_spans if is_discontinuous_yield(b)]
     disco_gspans = [(a, b, c) for a,b,c in gold_spans if is_discontinuous_yield(b)]
 
+    disco_tspans.sort(key = lambda x: (len(x[1]), x[1]))
+    disco_gspans.sort(key = lambda x: (len(x[1]), x[1]))
+
     # h_tspans = defaultdict(list)
     # h_gspans = defaultdict(list)
     # for a, b, c in test_spans:
@@ -101,6 +105,8 @@ def get_disco_errors(test, gold, include_terminals=False):
         h_disco_tspans[b].append((a,c))
     for a, b, c in disco_gspans:
         h_disco_gspans[b].append((a,c))
+
+    print(h_disco_gspans)
 
     ans = []
     # etype, span, label, node
@@ -129,13 +135,13 @@ def get_disco_errors(test, gold, include_terminals=False):
                     name = "crossing"
                     break
             ans.append((name, gspan, gnode.label, gnode))
-            print "missing", gnode
+            print "get_disco_errors name", name, gnode
             print
         else:
             list_const = h_disco_tspans[gspan]
             if glabel not in [a for a, b in list_const]:
                 ans.append(("missing", gspan, gnode.label, gnode))
-                print "missing", gnode
+                print "get_disco_errors missing", gnode
                 print
 
     return ans
