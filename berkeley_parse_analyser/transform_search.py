@@ -433,6 +433,8 @@ def main(args, classify):
         sent_no += 1
         gold_text = gold_in.readline()
         test_text = test_in.readline()
+        # if sent_no < 666:
+            # continue
         if gold_text == '' and test_text == '':
             print >> out_dict['err'], "End of both input files"
             break

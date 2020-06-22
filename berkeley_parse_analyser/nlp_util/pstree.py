@@ -136,15 +136,12 @@ class PSTree:
             subtree.update_proj_spans_rec()
         self.span = (self.subtrees[0].span[0], self.subtrees[-1].span[1])
 
-    def update_linearization_spans(self):
-        # update constituents with representation order (not necessarily sentence order)
-        i = 0
-        for t in self:
-            if t.is_terminal():
-                t.span = (i, i+1)
-                i+=1
-
-        self.update_proj_spans()
+    def update_node_order(self):
+        if self.is_terminal():
+            return
+        for c in self.subtrees:
+            c.update_node_order()
+        self.subtrees.sort(key = lambda x: min(x.true_span))
 
     def __iter__(self):
         return TreeIterator(self, 'pre')

@@ -66,7 +66,7 @@ def is_crossing(span1, span2):
     return True
 
 def get_disco_errors(test, gold, include_terminals=False):
-    print "call get_disco_errors"
+    #print "call get_disco_errors"
     ans = []
     test.update_true_spans()
     gold.update_true_spans()
@@ -106,7 +106,7 @@ def get_disco_errors(test, gold, include_terminals=False):
     for a, b, c in disco_gspans:
         h_disco_gspans[b].append((a,c))
 
-    print(h_disco_gspans)
+    #print "h_disco_spans", h_disco_gspans
 
     ans = []
     # etype, span, label, node
@@ -116,8 +116,8 @@ def get_disco_errors(test, gold, include_terminals=False):
             if tlabel in [a for a, b in list_const]:
                 continue
         ans.append(('extra', tspan, tnode.label, tnode))
-        print "extra", tnode
-        print
+        #print "extra", tnode
+        #print
 
         # Old
         # if tspan in h_disco_gspans:
@@ -130,20 +130,22 @@ def get_disco_errors(test, gold, include_terminals=False):
     for glabel, gspan, gnode in disco_gspans:
         if gspan not in h_disco_tspans:
             name = "missing"
-            for tlabel, tspan, tnode in disco_tspans:
+            #for tlabel, tspan, tnode in disco_tspans:
+            for tlabel, tspan, tnode in test_spans:
                 if is_crossing(gspan, tspan):
                     name = "crossing"
                     break
             ans.append((name, gspan, gnode.label, gnode))
-            print "get_disco_errors name", name, gnode
-            print
+            #print "get_disco_errors name", name, gnode
+            #print
         else:
             list_const = h_disco_tspans[gspan]
             if glabel not in [a for a, b in list_const]:
                 ans.append(("missing", gspan, gnode.label, gnode))
-                print "get_disco_errors missing", gnode
-                print
+                #print "get_disco_errors missing", gnode
+                #print
 
+    # also return all spans?
     return ans
 
 

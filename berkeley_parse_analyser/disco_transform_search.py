@@ -28,12 +28,14 @@ def get_preterminals(tree, ans=None):
 
 
 
-def disco_gen_different_label_successor(ctree, span, cur_label, new_label):
+def disco_gen_different_label_successor(node, cur_label, new_label):
+    #print "disco: change label"
     #success, response = tree_transform.change_label(ctree, new_label, span, cur_label, False)
-    success, response = tree_transform.change_label_by_node(ctree, new_label, in_place=True)
+    #print "cl ", node
+    success, response = tree_transform.change_label_by_node(node, new_label, in_place=True)
     assert success, response
-
     ntree, nnode = response
+    #print "cl ", node
 
     info = {
         'type': 'relabel',
@@ -53,6 +55,7 @@ def disco_add_node(tree, span, label, position=0, in_place=True):
     '''Introduce a new node in the tree.  Position indicates what to do when a
     node already exists with the same span.  Zero indicates above any current
     nodes, one indicates beneath the first, and so on.'''
+    
     tree = tree.root()
     if not in_place:
         tree = tree.clone()
@@ -86,7 +89,9 @@ def disco_add_node(tree, span, label, position=0, in_place=True):
     newchildren = outnodes + [newnode]
     node.subtrees = sorted(newchildren, key = lambda x: min(x.true_span))
     
+    tree.update_node_order()
     tree.update_proj_spans()
+    
 
     return (True, (tree, newnode))
     
@@ -125,6 +130,7 @@ def disco_add_node(tree, span, label, position=0, in_place=True):
     """
 
 def disco_gen_missing_successor(ctree, error):
+    #print "disco: gen missing"
     success, response = disco_add_node(ctree, error[1], error[2], in_place=True)
     assert success, response
 
@@ -167,6 +173,7 @@ def disco_remove_node_by_node(node, in_place):
 
 
 def disco_gen_extra_successor(ctree, error, gold):
+    #print "disco: gen extra"
     #ans.append(('extra', tspan, tnode.label, tnode))
     #success, response = disco_remove_node(ctree, error[1], error[2], in_place=False)
     success, response = disco_remove_node_by_node(error[3], in_place=True)
@@ -174,6 +181,9 @@ def disco_gen_extra_successor(ctree, error, gold):
 
     parent, dnode, spos, epos  = response
     ntree = parent.root()
+    ntree.update_node_order()
+    ntree.update_proj_spans()
+    
 
     info = {
         'type': 'remove',
@@ -205,100 +215,311 @@ def disco_gen_extra_successor(ctree, error, gold):
     return (True, ntree, info)
 
 
-# def gen_move_successor(source_span, left, right, new_parent, cerrors, gold):
-    # success, response = tree_transform.move_nodes(source_span.subtrees[left:right+1], new_parent, False)
-    # assert success, response
+def gen_move_successor(source_span, left, right, new_parent, cerrors, gold):
+    #print "disco: gen move"
+    success, response = tree_transform.move_nodes(source_span.subtrees[left:right+1], new_parent, False)
+    assert success, response
 
-    # ntree, nodes, new_parent = response
-    # new_left = new_parent.subtrees.index(nodes[0])
-    # new_right = new_parent.subtrees.index(nodes[-1])
+    ntree, nodes, new_parent = response
+    new_left = new_parent.subtrees.index(nodes[0])
+    new_right = new_parent.subtrees.index(nodes[-1])
 
-    # # Find Lowest Common Ancestor of the new and old parents
-    # full_span = (min(source_span.span[0], new_parent.span[0]), max(source_span.span[1], new_parent.span[1]))
-    # lca = new_parent
-    # while not (lca.span[0] <= full_span[0] and full_span[1] <= lca.span[1]):
-        # lca = lca.parent
+    # Find Lowest Common Ancestor of the new and old parents
+    full_span = (min(source_span.span[0], new_parent.span[0]), max(source_span.span[1], new_parent.span[1]))
+    lca = new_parent
+    while not (lca.span[0] <= full_span[0] and full_span[1] <= lca.span[1]):
+        lca = lca.parent
 
-    # info = {
-        # 'type': 'move',
-        # 'old_parent': get_label(source_span),
-        # 'new_parent': get_label(new_parent),
-        # 'movers': [get_label(node) for node in nodes],
-        # 'mover info': [(get_label(node), node.span) for node in nodes],
-        # 'new_family': [get_label(subtree) for subtree in new_parent.subtrees],
-        # 'old_family': [get_label(subtree) for subtree in source_span.subtrees],
-        # 'start left siblings': [get_label(node) for node in source_span.subtrees[:left]],
-        # 'start right siblings': [get_label(node) for node in source_span.subtrees[right+1:]],
-        # 'end left siblings': [get_label(node) for node in new_parent.subtrees[:new_left]],
-        # 'end right siblings': [get_label(node) for node in new_parent.subtrees[new_right+1:]],
-        # 'auto preterminals': get_preterminals(lca),
-        # 'auto preterminal span': lca.span
-    # }
+    info = {
+        'type': 'move',
+        'old_parent': get_label(source_span),
+        'new_parent': get_label(new_parent),
+        'movers': [get_label(node) for node in nodes],
+        'mover info': [(get_label(node), node.span) for node in nodes],
+        'new_family': [get_label(subtree) for subtree in new_parent.subtrees],
+        'old_family': [get_label(subtree) for subtree in source_span.subtrees],
+        'start left siblings': [get_label(node) for node in source_span.subtrees[:left]],
+        'start right siblings': [get_label(node) for node in source_span.subtrees[right+1:]],
+        'end left siblings': [get_label(node) for node in new_parent.subtrees[:new_left]],
+        'end right siblings': [get_label(node) for node in new_parent.subtrees[new_right+1:]],
+        'auto preterminals': get_preterminals(lca),
+        'auto preterminal span': lca.span
+    }
 
-    # if left == right and nodes[-1].span[1] - nodes[-1].span[0] == 1:
-        # preterminal = nodes[-1]
-        # while preterminal.word is None:
-            # preterminal = preterminal.subtrees[0]
-        # gold_eq = gold.get_nodes('lowest', preterminal.span[0], preterminal.span[1])
-        # if gold_eq is not None:
-            # info['POS confusion'] = (get_label(preterminal), get_label(gold_eq))
+    if left == right and nodes[-1].span[1] - nodes[-1].span[0] == 1:
+        preterminal = nodes[-1]
+        while preterminal.word is None:
+            preterminal = preterminal.subtrees[0]
+        gold_eq = gold.get_nodes('lowest', preterminal.span[0], preterminal.span[1])
+        if gold_eq is not None:
+            info['POS confusion'] = (get_label(preterminal), get_label(gold_eq))
 
-    # # Consider fixing a missing node in the new location as well
-    # nerrors = parse_errors.ParseErrorSet(gold, ntree)
-    # to_fix = None
-    # for error in nerrors.missing:
-        # if error[1][0] <= nodes[0].span[0] and nodes[-1].span[1] <= error[1][1]:
-            # if error[1] == (nodes[0].span[0], nodes[-1].span[1]):
-                # continue
-            # if error[1][0] < new_parent.span[0] or error[1][1] > new_parent.span[1]:
-                # continue
-            # if to_fix is None or to_fix[1][0] < error[1][0] or error[1][1] < to_fix[1][1]:
-                # to_fix = error
-    # if to_fix is not None:
-        # info['added and moved'] = True
-        # info['added label'] = error[2]
+    # Consider fixing a missing node in the new location as well
+    nerrors = parse_errors.ParseErrorSet(gold, ntree)
+    to_fix = None
+    for error in nerrors.missing:
+        if error[1][0] <= nodes[0].span[0] and nodes[-1].span[1] <= error[1][1]:
+            if error[1] == (nodes[0].span[0], nodes[-1].span[1]):
+                continue
+            if error[1][0] < new_parent.span[0] or error[1][1] > new_parent.span[1]:
+                continue
+            if to_fix is None or to_fix[1][0] < error[1][0] or error[1][1] < to_fix[1][1]:
+                to_fix = error
+    if to_fix is not None:
+        info['added and moved'] = True
+        info['added label'] = error[2]
 
-        # unmoved = []
-        # for node in new_parent.subtrees:
-            # if to_fix[1][0] < node.span[0] and node.span[1] < to_fix[1][1]:
-                # if node not in nodes:
-                    # unmoved.append(node)
-        # info['adding node already present'] = False
-        # if len(unmoved) == 1 and unmoved[0].label == to_fix[2]:
-            # info['adding node already present'] = True
+        unmoved = []
+        for node in new_parent.subtrees:
+            if to_fix[1][0] < node.span[0] and node.span[1] < to_fix[1][1]:
+                if node not in nodes:
+                    unmoved.append(node)
+        info['adding node already present'] = False
+        if len(unmoved) == 1 and unmoved[0].label == to_fix[2]:
+            info['adding node already present'] = True
 
-        # success, response = tree_transform.add_node(ntree, to_fix[1], to_fix[2], in_place=False)
-        # assert success, response
-        # ntree, nnode = response
+        success, response = tree_transform.add_node(ntree, to_fix[1], to_fix[2], in_place=False)
+        assert success, response
+        ntree, nnode = response
 
-    # return (False, ntree, info)
+    return (False, ntree, info)
+
+def find_possible_new_parent(ancestors, new_span, new_label, true_gold_spans):
+    # find all nodes that would be gold with new span
+    #  are not necessarily gold now
+    # to rank by: lowest + are gold with current span
+    new_span = set(new_span)
+    res = []
+    for node in ancestors:
+        future_span_set = new_span | node.true_span
+        future_span_tup = tuple(sorted(future_span_set))
+        if future_span_tup in true_gold_spans and node.label in true_gold_spans[future_span_tup]:
+            
+            tspan = tuple(sorted(node.true_span))
+            was_gold = tspan in true_gold_spans and node.label in true_gold_spans[tspan]
+            
+            # Create new const if:
+            # candidate parent has a different span or a diferent label
+            #   node, was_gold before movement, True if no need to create new node
+            res.append((node, was_gold, node.label == new_label and future_span_set == new_span))
+    return res
+
+#def disco_gen_move_successor(source_span, left, right, new_parent, cerrors, gold):
+def disco_gen_move_successor(ctree, gold_true_spans, error):
+    # arguments: ctree, gspan, gold_true_spans
+
+    root = ctree.root()
+    error_type, gspan, glabel, gnode = error
+    assert error_type == "crossing"
+
+    #print gspan
+    children_nodes = find_children_nodes(ctree, gspan)
+
+    # If they have the same parent -> not happening bc wouldn't be crossing
+    # for each newchild:
+    #    check if parent minus node is still a gold const
+    #    detach them from parents
+    # create new node
+
+    # search where to attach new node:
+    #    lowest node such that a gold constituent is created?
+    #    lowest common ancestor -> safest
+    # recompute proj spans
+
+    info = []
+    children_nodes.sort(key = lambda x: min(x.true_span))
 
 
+    parents_clone = [c.parent.clone() for c in children_nodes]
+
+    """
+    parents = [c.parent for c in children_nodes]
+    parents_clone = [c.clone() for c in parents]
+    for c in children_nodes:
+        parent = c.parent
+        position = parent.subtrees.index(c)
+        new_span = tuple(sorted([i for i in parent.true_span if i not in c.true_span]))
+        
+        parent_new_span_is_gold = new_span in gold_true_spans and parent.label in gold_true_spans[new_span]
+        parent_old_span_is_gold = tuple(sorted(parent.true_span)) in gold_true_spans and parent.label in gold_true_spans[tuple(sorted(parent.true_span))]
+        info.append((parent_old_span_is_gold, parent_new_span_is_gold))
+        parent.subtrees.pop(position)
+    """
+
+    # can_be_new_parent = []
+    # for i, values in enumerate(info):
+        # if values[0] and not values[1]:
+            # #print children_nodes[i]
+            # can_be_new_parent.append(i)
+            # # the i should be the new parent
+
+    ancestors = []
+    for c in children_nodes:
+        current = c
+        while current is not None:
+            ancestors.append(current)
+            current = current.parent
+
+    res = find_possible_new_parent(ancestors, gspan, glabel, gold_true_spans)
+    # sorting: priority to no new node creation
+    res.sort(key = lambda x: (- x[2], x[1], len(x[0].true_span)))
+    best_candidate = res[0]
+    best_node = best_candidate[0]
+
+    # print
+    # for candidate in res:
+        # print candidate[1:], candidate[0]
+    # print
+    # for c in children_nodes:
+        # print "c    ", c
+    
+    add_and_move = not best_candidate[2]
+    if not add_and_move:
+        #print "not add and move"
+        # don't create a new node
+        for c in children_nodes:
+            #print "c = ", c
+            if c == best_node:
+                print "same node, do nothing"
+            elif c.parent != best_node:
+                #print "here here"
+                position = c.parent.subtrees.index(c)
+                c.parent.subtrees.pop(position)
+
+                best_node.subtrees.append(c)
+                c.parent = best_node
+            else:
+                print "Same parent"
+    else:
+        print "add and move"
+        for c in children_nodes:
+            #print "c = ", c
+            parent = c.parent
+            position = parent.subtrees.index(c)
+            parent.subtrees.pop(position)
+
+        new_node = pstree.PSTree(word=None, label=glabel, span=(0,0), parent=None, subtrees=children_nodes)
+
+        # create new node
+        best_node.subtrees.append(new_node)
+        best_node.subtrees.sort(key=lambda x: min(x.true_span))
+        new_node.parent = best_node
+
+    root = best_node.root()
+    root.update_node_order()
+    root.update_proj_spans()
+    
+
+    info = {
+        'type': 'move',
+        'number_moved': len(children_nodes),
+        'old_parent': "|".join([get_label(c) for c in parents_clone]),
+        'new_parent': glabel,
+        'movers': [get_label(node) for node in children_nodes],
+        'mover info': [(get_label(node), node.true_span) for node in children_nodes],
+        #'new_family': [get_label(subtree) for subtree in new_parent.subtrees],
+        #'old_family': [get_label(subtree) for subtree in source_span.subtrees],
+        #'start left siblings': [get_label(node) for node in source_span.subtrees[:left]],
+        #'start right siblings': [get_label(node) for node in source_span.subtrees[right+1:]],
+        #'end left siblings': [get_label(node) for node in new_parent.subtrees[:new_left]],
+        #'end right siblings': [get_label(node) for node in new_parent.subtrees[new_right+1:]],
+        #'auto preterminals': get_preterminals(lca),
+        #'auto preterminal span': lca.span,
+        'added and moved': add_and_move,
+        'added label': glabel,
+    }
+
+    #print "New tree", root
+    return (True, root, info)
+
+
+
+def find_children_nodes(tree, span):
+    ## return the minimal list of nodes such that their span is span
+    if all([i in span for i in tree.true_span]):
+        return [tree]
+    l = []
+    for subtree in tree.subtrees:
+        if any([i in span for i in subtree.true_span]):
+            l.extend(find_children_nodes(subtree, span))
+    return l
 
 def disco_successors(ctree, cerrors, gold):
     # error: ('extra', tspan, tnode.label, tnode))
     # error: (type, span, label, tnode
     # Change the label of a node
+
+    # print "Len missing ", len(cerrors.missing)
+    # print "Len extra   ", len(cerrors.extra)
+    # print "Len crossing", len(cerrors.crossing)
+
+    # print "Doing relabelling"
+    made_modifications = False
     for merror in cerrors.missing:
+        # ans.append((name, gspan, gnode.label, gnode))
+        _, gspan, glabel, gnode = merror
         for eerror in cerrors.extra:
-            print(merror, eerror)
-            if merror[1] == eerror[1]:
+            # error: ans.append(('extra', tspan, tnode.label, tnode))
+            _, tspan, tlabel, tnode = eerror
+            #print(merror, eerror)
+            #if merror[1] == eerror[1]:
+            if gspan == tspan:
                 # def gen_different_label_successor(ctree, span, cur_label, new_label):
-                yield disco_gen_different_label_successor(ctree, merror[1], error[1], merror[2])
+                #yield disco_gen_different_label_successor(tnode, merror[1], eerror[1], merror[2])
+                #print "relabelling", tlabel, glabel
+                made_modifications = True
+                yield disco_gen_different_label_successor(tnode, tlabel, glabel)
+    if made_modifications:
+        return
+        
+    # TODO: make sure these are not considered several times -> fix with return
 
-
+    #print "Doing missing"
     # Add a node
     for error in cerrors.missing:
+        #print "missing"
         yield disco_gen_missing_successor(ctree, error)
 
 
+    #print "Doing extra"
     # Remove a node
     for error in cerrors.extra:
+        #print "extra"
         yield disco_gen_extra_successor(ctree, error, gold)
 
 
-    """
+    #print "Doing crossing"
+    # Iterate on crossing errorss
+    # find smallest list of nodes to form missing constituent
+    # create node
+    # check that no gold constituent is undone
+    # where to attach:
+    #   parent of one of them if it ends up in correct constituent
+    #   lowest common parent
+    gold_true_spans = {}
+    for node in gold:
+        true_span = tuple(sorted(node.true_span))
+        if true_span in gold_true_spans:
+            gold_true_spans[true_span].append(node.label)
+        else:
+            gold_true_spans[true_span] = [node.label]
+
+
+    for crossing in cerrors.crossing:
+
+        #yield gen_move_successor(source_span, left, right, new_parent, cerrors, gold)
+        # newchildren = outnodes + [newnode]
+        # node.subtrees = sorted(newchildren, key = lambda x: min(x.true_span))
+        # tree.update_proj_spans()
+
+        #print "crossing", crossing
+        yield disco_gen_move_successor(ctree, gold_true_spans, crossing)
+        return # 1 crossing at a time -> solving a crossing might change type of other errors
+
+
+    # TODO: check this piece of code
     # Move nodes
+    """
     for source_span in ctree:
         # Consider all continuous sets of children
         for left in xrange(len(source_span.subtrees)):
@@ -356,7 +577,6 @@ def disco_successors(ctree, cerrors, gold):
                             if new_parent.parent.span[1] > source_span.span[1]:
                                 break
                             new_parent = new_parent.parent
-
                 for new_parent in new_parents:
                     yield gen_move_successor(source_span, left, right, new_parent, cerrors, gold)
     """
@@ -366,6 +586,8 @@ def greedy_search_disco(gold, test):
     cur = (test.clone(), {'type': 'init'}, 0)
     iters = 0
     path = []
+    # print "gold", gold
+    # print "pred", test
     while True:
         path.append(cur)
         if iters > 100:
@@ -374,6 +596,7 @@ def greedy_search_disco(gold, test):
 
         ctree = cur[0]
         cerrors = parse_errors.ParseErrorSet(gold, ctree, discontinuous=True)
+        
         if len(cerrors) == 0:
             final = cur
             break
@@ -381,9 +604,11 @@ def greedy_search_disco(gold, test):
         best = None
         # search for and apply fixes, returns iterator on fixes, newtree, information
         for fixes, ntree, info in disco_successors(ctree, cerrors, gold):
+            #print "ntree", ntree
             if not ntree.check_consistency():
                 raise Exception("Inconsistent tree! {}".format(ntree))
-            nerrors = parse_errors.get_errors(ntree, gold)
+            nerrors = parse_errors.get_disco_errors(ntree, gold)
+            #print "ntree", ntree
             change = len(cerrors) - len(nerrors)
             if change < 0:
                 continue
@@ -392,6 +617,24 @@ def greedy_search_disco(gold, test):
         cur = best
         iters += 1
     
+    # TODO:
+    # assert the tokens are the same as in the gold tree
+    # make custom classify functions
+    
+    # print gold
+    # print final[0]
+    gold_words = gold.word_yield(as_list=True)
+    pred_words = final[0].word_yield(as_list=True)
+    if gold_words != pred_words:
+        print
+        print "gold", gold
+        print
+        for t in path:
+            print t[0]
+        print gold_words
+        print pred_words
+        print
+
     for step in path:
         # classify(step[1], gold, test)
         step[1]["classified_type"] = "TODO"
