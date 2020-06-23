@@ -138,6 +138,7 @@ class PSTree:
 
     def update_node_order(self):
         if self.is_terminal():
+            #print self.word, self.true_span
             return
         for c in self.subtrees:
             c.update_node_order()

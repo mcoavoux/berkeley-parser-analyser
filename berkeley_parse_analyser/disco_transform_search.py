@@ -387,6 +387,7 @@ def disco_gen_move_successor(ctree, gold_true_spans, error):
                 c.parent.subtrees.pop(position)
 
                 best_node.subtrees.append(c)
+                best_node.true_span |= c.true_span
                 c.parent = best_node
             else:
                 print "Same parent"
@@ -397,16 +398,20 @@ def disco_gen_move_successor(ctree, gold_true_spans, error):
             parent = c.parent
             position = parent.subtrees.index(c)
             parent.subtrees.pop(position)
+            parent.true_span -= c.true_span
 
         new_node = pstree.PSTree(word=None, label=glabel, span=(0,0), parent=None, subtrees=children_nodes)
 
         # create new node
         best_node.subtrees.append(new_node)
+        best_node.true_span |= new_node.true_span
         best_node.subtrees.sort(key=lambda x: min(x.true_span))
         new_node.parent = best_node
 
     root = best_node.root()
+    #print "root before reordering", root
     root.update_node_order()
+    #print "root after  reordering", root
     root.update_proj_spans()
     
 
@@ -449,9 +454,9 @@ def disco_successors(ctree, cerrors, gold):
     # error: (type, span, label, tnode
     # Change the label of a node
 
-    # print "Len missing ", len(cerrors.missing)
-    # print "Len extra   ", len(cerrors.extra)
-    # print "Len crossing", len(cerrors.crossing)
+    print "Len missing ", len(cerrors.missing)
+    print "Len extra   ", len(cerrors.extra)
+    print "Len crossing", len(cerrors.crossing)
 
     # print "Doing relabelling"
     made_modifications = False
@@ -466,7 +471,7 @@ def disco_successors(ctree, cerrors, gold):
             if gspan == tspan:
                 # def gen_different_label_successor(ctree, span, cur_label, new_label):
                 #yield disco_gen_different_label_successor(tnode, merror[1], eerror[1], merror[2])
-                #print "relabelling", tlabel, glabel
+                print "relabelling", tlabel, glabel
                 made_modifications = True
                 yield disco_gen_different_label_successor(tnode, tlabel, glabel)
     if made_modifications:
@@ -477,14 +482,14 @@ def disco_successors(ctree, cerrors, gold):
     #print "Doing missing"
     # Add a node
     for error in cerrors.missing:
-        #print "missing"
+        print "missing"
         yield disco_gen_missing_successor(ctree, error)
 
 
     #print "Doing extra"
     # Remove a node
     for error in cerrors.extra:
-        #print "extra"
+        print "extra"
         yield disco_gen_extra_successor(ctree, error, gold)
 
 
@@ -512,7 +517,7 @@ def disco_successors(ctree, cerrors, gold):
         # node.subtrees = sorted(newchildren, key = lambda x: min(x.true_span))
         # tree.update_proj_spans()
 
-        #print "crossing", crossing
+        print "crossing", crossing
         yield disco_gen_move_successor(ctree, gold_true_spans, crossing)
         return # 1 crossing at a time -> solving a crossing might change type of other errors
 
@@ -586,8 +591,8 @@ def greedy_search_disco(gold, test):
     cur = (test.clone(), {'type': 'init'}, 0)
     iters = 0
     path = []
-    # print "gold", gold
-    # print "pred", test
+    #print "gold", gold
+    #print "pred", test
     while True:
         path.append(cur)
         if iters > 100:
@@ -634,6 +639,7 @@ def greedy_search_disco(gold, test):
         print gold_words
         print pred_words
         print
+        assert False, "Error, bad discontinuous error correction"
 
     for step in path:
         # classify(step[1], gold, test)

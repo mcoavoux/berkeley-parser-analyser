@@ -299,6 +299,7 @@ def compare_trees(gold_tree, test_tree, out_dict, error_counts, classify):
     """ Compares two trees. """
     disco_errors = parse_errors.get_disco_errors(test_tree, gold_tree)
     error_count = len(disco_errors)
+    print >> out_dict['out'], "--- Discontinuous mistakes ---"
     print >> out_dict['out'], "{} Initial errors".format(error_count)
     
     iters, path = greedy_search_disco(gold_tree, test_tree)
@@ -320,7 +321,12 @@ def compare_trees(gold_tree, test_tree, out_dict, error_counts, classify):
     print >> out_dict['err'], ""
     print >> out_dict['out'], ""
 
-    return
+    test_tree = path[-1][0]
+    #
+    # Now relaunch error correction on partially corrected tree
+    assert test_tree.word_yield() == gold_tree.word_yield()
+
+    print >> out_dict['out'], "--- projective mistakes ---"
     init_errors = parse_errors.get_errors(test_tree, gold_tree)
     error_count = len(init_errors)
     print >> out_dict['out'], "{} Initial errors".format(error_count)
@@ -433,8 +439,6 @@ def main(args, classify):
         sent_no += 1
         gold_text = gold_in.readline()
         test_text = test_in.readline()
-        # if sent_no < 666:
-            # continue
         if gold_text == '' and test_text == '':
             print >> out_dict['err'], "End of both input files"
             break
