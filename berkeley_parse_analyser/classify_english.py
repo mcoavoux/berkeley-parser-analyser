@@ -165,8 +165,157 @@ def classify(info, gold, test):
                     info['classified_type'] = "Co-ordination"
                     return
 
+def classify_english_disco(info, gold, test):
+    coord_tags = ['CC']
+
+    #print info
+    # Classification
+    info['classified_type'] = 'UNSET ' + info['type']
+    if value_present(info, ['type'], ['move']):
+        if 'start left siblings' in info:
+            #print "ooo", info['start left siblings']
+            #if len(info['start left siblings']) > 0 and info['start left siblings'][-1] in coord_tags:
+            if len(info['start left siblings']) > 0 and coord_tags[0] in info['start left siblings']:
+                info['classified_type'] = "disco-Co-ordination"
+                return
+        if 'start right siblings' in info:
+            if len(info['start right siblings']) > 0 and coord_tags[0] in info['start right siblings']:
+                info['classified_type'] = "disco-Co-ordination"
+                return
+        if 'end left siblings' in info:
+            if len(info['end left siblings']) > 0 and coord_tags[0] in info['end left siblings']:
+                info['classified_type'] = "disco-Co-ordination"
+                return
+        if 'end right siblings' in info:
+            if len(info['end right siblings']) > 0 and coord_tags[0] in info['end right siblings'] in coord_tags:
+                info['classified_type'] = "disco-Co-ordination"
+                return
+        if 'movers' in info:
+            if len(info['movers']) > 0 and (info['movers'][-1] in coord_tags or coord_tags[0] in info['movers']):
+                info['classified_type'] = "disco-Co-ordination"
+                return
+
+        # multi case info is not actually used, but may be useful
+        multi_case = False
+        if 'movers' in info:
+            if len(info['movers']) > 1:
+                multi_case = True
+                for label in info['movers']:
+                    if label not in phrase_labels:
+                        multi_case = False
+                        break
+        if value_present(info, ['movers'], ['PP']):
+            info['classified_type'] = "disco-PP Attachment"
+            return
+        if value_present(info, ['movers'], ['NP']):
+            info['classified_type'] = "disco-NP Attachment"
+            return
+        if value_present(info, ['movers'], ['VP']):
+            info['classified_type'] = "disco-VP Attachment"
+            return
+        if value_present(info, ['movers'], ['S', 'SINV', 'SBAR']):
+            info['classified_type'] = "disco-Clause Attachment"
+            return
+        if value_present(info, ['movers'], ['RB', 'ADVP', 'ADJP']):
+            info['classified_type'] = "disco-Modifier Attachment"
+            return
+
+        if value_present(info, ['old_parent'], ['NP', 'QP']):
+            if value_present(info, ['new_parent'], ['NP', 'QP']):
+                info['classified_type'] = "disco-NP Internal Structure"
+                return
+
+    if 'over_word' in info and info['over_word']:
+        info['classified_type'] = "disco-Single Word Phrase"
+        return
+
+    if value_present(info, ['type'], ['relabel']):
+        info['classified_type'] = "disco-Different label"
+        return
+
+    if info['type'] == 'add':
+        if 'subtrees' in info and len(info['subtrees']) == 1:
+            if info['subtrees'][0] == info['label']:
+                info['classified_type'] = "disco-XoverX Unary"
+                return
+            info['classified_type'] = "disco-Unary"
+            return
+
+    if info['type'] == 'remove':
+        if 'family' in info and len(info['family']) == 1:
+            if info['parent'] == info['label']:
+                info['classified_type'] = "disco-XoverX Unary"
+                return
+            info['classified_type'] = "disco-Unary"
+            return
+        if 'subtrees' in info and len(info['subtrees']) == 1:
+            info['classified_type'] = "disco-Unary"
+            return
+
+    if value_present(info, ['label'], ['UCP']):
+        info['classified_type'] = "disco-Co-ordination"
+        return
+
+    if 'right siblings' in info:
+        if len(info['right siblings']) > 0 and info['right siblings'][0] in coord_tags:
+            info['classified_type'] = "disco-Co-ordination"
+            return
+
+    if 'subtrees' in info and 'PP' in info['subtrees'][1:]:
+        info['classified_type'] = "disco-PP Attachment"
+        return
+
+    if 'subtrees' in info:
+        if 'S' in info['subtrees'][1:]:
+            info['classified_type'] = "disco-Clause Attachment"
+            return
+        if 'SBAR' in info['subtrees'][1:]:
+            info['classified_type'] = "disco-Clause Attachment"
+            return
+        if 'SINV' in info['subtrees'][1:]:
+            info['classified_type'] = "disco-Clause Attachment"
+            return
+    
+    if value_present(info, ['parent'], ['NP']):
+        all_words = True
+        if 'subtrees' in info:
+            # None of the subtrees are internal nodes
+            for label in info['subtrees']:
+                if label in phrase_labels:
+                    all_words = False
+                    break
+            if all_words:
+                info['classified_type'] = "disco-NP Internal Structure"
+                return
+
+    if value_present(info, ['label'], ['ADVP', 'ADJP']):
+        info['classified_type'] = "disco-Modifier Attachment"
+        return
+
+    if 'subtrees' in info:
+        if 'ADVP' in info['subtrees'][1:] or 'ADJP' in info['subtrees'][1:]:
+            info['classified_type'] = "disco-Modifier Attachment"
+            return
+
+    if 'label' in info:
+        label = info['label']
+        if 'subtrees' in info:
+            all_same = True
+            for slabel in info['subtrees']:
+                if slabel != label:
+                    all_same = False
+                    break
+            if all_same:
+                if label == 'NP':
+                    info['classified_type'] = "disco-NP Internal Structure"
+                    return
+                else:
+                    info['classified_type'] = "disco-Co-ordination"
+                    return
+
+
 
 if __name__ == '__main__':
     from transform_search import main
     import sys
-    main(sys.argv, classify)
+    main(sys.argv, classify, classify_english_disco)

@@ -295,14 +295,14 @@ def greedy_search(gold, test, classify):
     return (0, iters), path
 
 
-def compare_trees(gold_tree, test_tree, out_dict, error_counts, classify):
+def compare_trees(gold_tree, test_tree, out_dict, error_counts, classify, classify_disco):
     """ Compares two trees. """
     disco_errors = parse_errors.get_disco_errors(test_tree, gold_tree)
     error_count = len(disco_errors)
     print >> out_dict['out'], "--- Discontinuous mistakes ---"
     print >> out_dict['out'], "{} Initial errors".format(error_count)
     
-    iters, path = greedy_search_disco(gold_tree, test_tree)
+    iters, path = greedy_search_disco(gold_tree, test_tree, classify_disco)
     print >> out_dict['out'], "{} on fringe, {} iterations".format(*iters)
     if path is not None:
         print >> out_dict['test_trees'], test_tree
@@ -367,7 +367,7 @@ def read_tree(text, out_dict, label):
     return tree
 
 
-def compare(gold_text, test_text, out_dict, error_counts, classify):
+def compare(gold_text, test_text, out_dict, error_counts, classify, classify_disco):
     """ Compares two trees in text form.
     This checks for empty trees and mismatched numbers
     of words.
@@ -405,10 +405,10 @@ def compare(gold_text, test_text, out_dict, error_counts, classify):
             print >> out, "Gold: " + gold_words
             print >> out, "Test: " + test_words
 
-    compare_trees(gold_tree, test_tree, out_dict, error_counts, classify)
+    compare_trees(gold_tree, test_tree, out_dict, error_counts, classify, classify_disco)
 
 
-def main(args, classify):
+def main(args, classify, classify_disco):
     init.argcheck(args, 4, 4, 'Identify errors in parser output', '<gold> <test> <prefix_for_output_files>')
 
     # Output setup
@@ -453,7 +453,7 @@ def main(args, classify):
         print >> out_dict['out'], "Sentence {}:".format(sent_no)
         print >> out_dict['err'], "Sentence {}:".format(sent_no)
         print >> out_dict['init_errors'], "Sentence {}:".format(sent_no)
-        compare(gold_text.strip(), test_text.strip(), out_dict, error_counts, classify)
+        compare(gold_text.strip(), test_text.strip(), out_dict, error_counts, classify, classify_disco)
         print >> out_dict['init_errors'], "\n"
 
     # Results
