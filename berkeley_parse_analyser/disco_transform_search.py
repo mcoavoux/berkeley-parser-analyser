@@ -29,13 +29,9 @@ def get_preterminals(tree, ans=None):
 
 
 def disco_gen_different_label_successor(node, cur_label, new_label):
-    #print "disco: change label"
-    #success, response = tree_transform.change_label(ctree, new_label, span, cur_label, False)
-    #print "cl ", node
     success, response = tree_transform.change_label_by_node(node, new_label, in_place=True)
     assert success, response
     ntree, nnode = response
-    #print "cl ", node
 
     info = {
         'type': 'relabel',
@@ -63,12 +59,10 @@ def disco_add_node(tree, span, label, position=0, in_place=True):
     # Search node such that: its span has the smallest superset of span
     set_span = set(span)
     node = tree.find_disco_spanning_node(set_span)
-    #print "node", node
     
     # search whether the subtrees have either:
     #    empty intersection with span
     #    or are subsets of span
-
     outnodes = []
     innodes = []
     for subtree in node.subtrees:
@@ -95,7 +89,6 @@ def disco_add_node(tree, span, label, position=0, in_place=True):
     return (True, (tree, newnode))
     
 def disco_gen_missing_successor(ctree, error):
-    #print "disco: gen missing"
     success, response = disco_add_node(ctree, error[1], error[2], in_place=True)
     assert success, response
 
@@ -138,7 +131,6 @@ def disco_remove_node_by_node(node, in_place):
 
 
 def disco_gen_extra_successor(ctree, error, gold):
-    #print "disco: gen extra"
     #ans.append(('extra', tspan, tnode.label, tnode))
     #success, response = disco_remove_node(ctree, error[1], error[2], in_place=False)
     success, response = disco_remove_node_by_node(error[3], in_place=True)
@@ -201,7 +193,6 @@ def find_possible_new_parent(ancestors, new_span, new_label, true_gold_spans):
             res.append((node, was_gold, node.label == new_label and future_span_set == new_span))
     return res
 
-#def disco_gen_move_successor(source_span, left, right, new_parent, cerrors, gold):
 def disco_gen_move_successor(ctree, gold_true_spans, error):
     # arguments: ctree, gspan, gold_true_spans
 
@@ -209,7 +200,6 @@ def disco_gen_move_successor(ctree, gold_true_spans, error):
     error_type, gspan, glabel, gnode = error
     assert error_type == "crossing"
 
-    #print gspan
     children_nodes = find_children_nodes(ctree, gspan)
 
     # If they have the same parent -> not happening bc wouldn't be crossing
@@ -242,38 +232,24 @@ def disco_gen_move_successor(ctree, gold_true_spans, error):
     best_candidate = res[0]
     best_node = best_candidate[0]
 
-    # print
-    # for candidate in res:
-        # print candidate[1:], candidate[0]
-    # print
-    # for c in children_nodes:
-        # print "c    ", c
-    
     add_and_move = not best_candidate[2]
     if not add_and_move:
-        #print "not add and move"
         # don't create a new node
         for c in children_nodes:
-            #print "A", len(c.true_span), len(c.word_yield(as_list=True)), c.true_span, c.word_yield(as_list=True)
             if c == best_node:
                 print "same node, do nothing"
             elif c.parent != best_node:
-                #print "here here"
-                #print "D", len(best_node.true_span), len(best_node.word_yield(as_list=True)), best_node.true_span, best_node.word_yield(as_list=True)
                 position = c.parent.subtrees.index(c)
                 c.parent.subtrees.pop(position)
 
                 best_node.subtrees.append(c)
                 best_node.true_span |= c.true_span
                 c.parent = best_node
-                #print "C", len(best_node.true_span), len(best_node.word_yield(as_list=True)), best_node.true_span, best_node.word_yield(as_list=True)
             else:
                 print "Same parent"
-            #print "B", len(c.true_span), len(c.word_yield(as_list=True)), c.true_span, c.word_yield(as_list=True)
     else:
         print "add and move"
         for c in children_nodes:
-            #print "c = ", c
             parent = c.parent
             position = parent.subtrees.index(c)
             parent.subtrees.pop(position)
@@ -339,7 +315,6 @@ def disco_successors(ctree, cerrors, gold):
     print "Len extra   ", len(cerrors.extra)
     print "Len crossing", len(cerrors.crossing)
 
-    # print "Doing relabelling"
     made_modifications = False
     for merror in cerrors.missing:
         # ans.append((name, gspan, gnode.label, gnode))
@@ -347,10 +322,7 @@ def disco_successors(ctree, cerrors, gold):
         for eerror in cerrors.extra:
             # error: ans.append(('extra', tspan, tnode.label, tnode))
             _, tspan, tlabel, tnode = eerror
-            #print(merror, eerror)
-            #if merror[1] == eerror[1]:
             if gspan == tspan:
-                # def gen_different_label_successor(ctree, span, cur_label, new_label):
                 #yield disco_gen_different_label_successor(tnode, merror[1], eerror[1], merror[2])
                 print "relabelling", tlabel, glabel
                 made_modifications = True
@@ -358,23 +330,17 @@ def disco_successors(ctree, cerrors, gold):
     if made_modifications:
         return
         
-    # TODO: make sure these are not considered several times -> fix with return
-
-    #print "Doing missing"
     # Add a node
     for error in cerrors.missing:
         print "missing"
         yield disco_gen_missing_successor(ctree, error)
 
-
-    #print "Doing extra"
     # Remove a node
     for error in cerrors.extra:
         print "extra"
         yield disco_gen_extra_successor(ctree, error, gold)
 
 
-    #print "Doing crossing"
     # Iterate on crossing errorss
     # find smallest list of nodes to form missing constituent
     # create node
@@ -394,13 +360,9 @@ def disco_successors(ctree, cerrors, gold):
     for crossing in cerrors.crossing:
 
         #yield gen_move_successor(source_span, left, right, new_parent, cerrors, gold)
-        # newchildren = outnodes + [newnode]
-        # node.subtrees = sorted(newchildren, key = lambda x: min(x.true_span))
-        # tree.update_proj_spans()
-
         print "crossing", crossing
         yield disco_gen_move_successor(ctree, gold_true_spans, crossing)
-        return # 1 crossing at a time -> solving a crossing might change type of other errors
+        return # 1 crossing at a time -> solving a crossing might change type of other errors and introducing new ones
 
 
 def greedy_search_disco(gold, test, classify):
@@ -430,10 +392,13 @@ def greedy_search_disco(gold, test, classify):
             if not ntree.check_consistency():
                 raise Exception("Inconsistent tree! {}".format(ntree))
             nerrors = parse_errors.get_disco_errors(ntree, gold)
-            #print "ntree", ntree
             change = len(cerrors) - len(nerrors)
-            if change < 0:
+            # authorize introducing at most one new error
+            # motivations: some discontinuous errors cannot be repaired
+            # without modifying projective constituents
+            if change < -1:
                 continue
+
             if best is None or change > best[2]:
                 best = (ntree, info, change)
         cur = best
@@ -460,7 +425,6 @@ def greedy_search_disco(gold, test, classify):
 
     for step in path:
         classify(step[1], gold, test)
-        #step[1]["classified_type"] = "TODO"
         if step[1]["classified_type"] != "UNSET init":
             print step[1]["classified_type"]
     return (0, iters), path
