@@ -92,43 +92,8 @@ def disco_add_node(tree, span, label, position=0, in_place=True):
     tree.update_node_order()
     tree.update_proj_spans()
     
-
     return (True, (tree, newnode))
     
-    """
-    # Find the node(s) that should be within the new span
-    nodes = tree.get_spanning_nodes(*span)
-    # Do not operate on the root node
-    if nodes[0].parent is None:
-        nodes = nodes[0].subtrees[:]
-    for i in xrange(position):
-        if len(nodes) > 1:
-            return (False, "Position {} is too deep".format(position))
-        nodes[0] = nodes[0].subtrees[0]
-    nodes.sort(key=lambda x: x.span)
-
-    # Check that all of the nodes are at the same level
-    parent = None
-    for node in nodes:
-        if parent is None:
-            parent = node.parent
-        if parent != node.parent:
-            return (False, "The span ({} - {}) would cross brackets".format(*span))
-
-    # Create the node
-    nnode = pstree.PSTree(None, label, span, parent)
-    position = parent.subtrees.index(nodes[0])
-    parent.subtrees.insert(position, nnode)
-
-    # Move the subtrees
-    for node in nodes:
-        node.parent.subtrees.remove(node)
-        nnode.subtrees.append(node)
-        node.parent = nnode
-
-    return (True, (tree, nnode))
-    """
-
 def disco_gen_missing_successor(ctree, error):
     #print "disco: gen missing"
     success, response = disco_add_node(ctree, error[1], error[2], in_place=True)
@@ -263,27 +228,6 @@ def disco_gen_move_successor(ctree, gold_true_spans, error):
 
 
     parents_clone = [c.parent.clone() for c in children_nodes]
-
-    """
-    parents = [c.parent for c in children_nodes]
-    parents_clone = [c.clone() for c in parents]
-    for c in children_nodes:
-        parent = c.parent
-        position = parent.subtrees.index(c)
-        new_span = tuple(sorted([i for i in parent.true_span if i not in c.true_span]))
-        
-        parent_new_span_is_gold = new_span in gold_true_spans and parent.label in gold_true_spans[new_span]
-        parent_old_span_is_gold = tuple(sorted(parent.true_span)) in gold_true_spans and parent.label in gold_true_spans[tuple(sorted(parent.true_span))]
-        info.append((parent_old_span_is_gold, parent_new_span_is_gold))
-        parent.subtrees.pop(position)
-    """
-
-    # can_be_new_parent = []
-    # for i, values in enumerate(info):
-        # if values[0] and not values[1]:
-            # #print children_nodes[i]
-            # can_be_new_parent.append(i)
-            # # the i should be the new parent
 
     ancestors = []
     for c in children_nodes:
@@ -458,70 +402,6 @@ def disco_successors(ctree, cerrors, gold):
         yield disco_gen_move_successor(ctree, gold_true_spans, crossing)
         return # 1 crossing at a time -> solving a crossing might change type of other errors
 
-
-    # TODO: check this piece of code
-    # Move nodes
-    """
-    for source_span in ctree:
-        # Consider all continuous sets of children
-        for left in xrange(len(source_span.subtrees)):
-            for right in xrange(left, len(source_span.subtrees)):
-                if left == 0 and right == len(source_span.subtrees) - 1:
-                    # Note, this means in cases like (NP (NN blah)) we can't move the NN
-                    # out, we have to move the NP level.
-                    continue
-                new_parents = []
-
-                # Consider moving down within this bracket
-                if left != 0:
-                    new_parent = source_span.subtrees[left-1]
-                    while not new_parent.is_terminal():
-                        if cerrors.is_extra(new_parent):
-                            new_parents.append(new_parent)
-                        new_parent = new_parent.subtrees[-1]
-                if right != len(source_span.subtrees) - 1:
-                    new_parent = source_span.subtrees[right+1]
-                    while not new_parent.is_terminal():
-                        if cerrors.is_extra(new_parent):
-                            new_parents.append(new_parent)
-                        new_parent = new_parent.subtrees[0]
-
-                # If source_span is extra
-                if cerrors.is_extra(source_span) and (left == 0 or right == len(source_span.subtrees) - 1):
-                    # Consider moving this set out to the left
-                    if left == 0:
-                        if source_span.subtrees[left].span[0] > 0:
-                            for new_parent in ctree.get_nodes('all', end=source_span.subtrees[left].span[0]):
-                                if cerrors.is_extra(new_parent):
-                                    new_parents.append(new_parent)
-
-                    # Consider moving this set out to the right
-                    if right == len(source_span.subtrees) - 1:
-                        if source_span.subtrees[right].span[1] < ctree.span[1]:
-                            for new_parent in ctree.get_nodes('all', start=source_span.subtrees[right].span[1]):
-                                if cerrors.is_extra(new_parent):
-                                    new_parents.append(new_parent)
-
-                    # Consider moving this set of spans up
-                    if left == 0:
-                        # Move up while on left
-                        new_parent = source_span.parent
-                        while not (new_parent.parent is None):
-                            new_parents.append(new_parent)
-                            if new_parent.parent.span[0] < source_span.span[0]:
-                                break
-                            new_parent = new_parent.parent
-                    if right == len(source_span.subtrees) - 1:
-                        # Move up while on right
-                        new_parent = source_span.parent
-                        while not (new_parent.parent is None):
-                            new_parents.append(new_parent)
-                            if new_parent.parent.span[1] > source_span.span[1]:
-                                break
-                            new_parent = new_parent.parent
-                for new_parent in new_parents:
-                    yield gen_move_successor(source_span, left, right, new_parent, cerrors, gold)
-    """
 
 def greedy_search_disco(gold, test, classify):
     # Initialise with the test tree
