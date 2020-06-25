@@ -310,19 +310,22 @@ def disco_gen_move_successor(ctree, gold_true_spans, error):
         #print "not add and move"
         # don't create a new node
         for c in children_nodes:
-            #print "c = ", c
+            #print "A", len(c.true_span), len(c.word_yield(as_list=True)), c.true_span, c.word_yield(as_list=True)
             if c == best_node:
                 print "same node, do nothing"
             elif c.parent != best_node:
                 #print "here here"
+                #print "D", len(best_node.true_span), len(best_node.word_yield(as_list=True)), best_node.true_span, best_node.word_yield(as_list=True)
                 position = c.parent.subtrees.index(c)
                 c.parent.subtrees.pop(position)
 
                 best_node.subtrees.append(c)
                 best_node.true_span |= c.true_span
                 c.parent = best_node
+                #print "C", len(best_node.true_span), len(best_node.word_yield(as_list=True)), best_node.true_span, best_node.word_yield(as_list=True)
             else:
                 print "Same parent"
+            #print "B", len(c.true_span), len(c.word_yield(as_list=True)), c.true_span, c.word_yield(as_list=True)
     else:
         print "add and move"
         for c in children_nodes:
@@ -341,6 +344,7 @@ def disco_gen_move_successor(ctree, gold_true_spans, error):
         new_node.parent = best_node
 
     root = best_node.root()
+    root.update_true_spans()
     #print "root before reordering", root
     root.update_node_order()
     #print "root after  reordering", root

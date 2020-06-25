@@ -142,6 +142,7 @@ class PSTree:
             return
         for c in self.subtrees:
             c.update_node_order()
+        assert len(self.true_span) == len(self.word_yield(as_list=True))
         self.subtrees.sort(key = lambda x: min(x.true_span))
 
     def __iter__(self):
